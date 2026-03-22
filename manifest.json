@@ -3,7 +3,7 @@
   "name": "Smart Paste Image",
   "version": "1.0.0",
   "minAppVersion": "1.0.0",
-  "description": "Smartly paste images into organized subfolders with auto-naming, compression, duplicate detection, and display sizing. | 智能粘贴图片：自动整理到子文件夹、命名、压缩、去重、调整显示尺寸。",
+  "description": "Smartly paste images into organized subfolders with auto-naming, compression, duplicate detection, and display sizing.",
   "author": "acblbtpccc",
   "authorUrl": "https://github.com/acblbtpccc",
   "isDesktopOnly": true
