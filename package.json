@@ -1,0 +1,24 @@
+{
+  "name": "obsidian-smart-paste-image",
+  "version": "1.0.0",
+  "description": "Automatically save pasted/dropped images to structured subfolders with naming, compression, and smart features",
+  "main": "main.js",
+  "scripts": {
+    "dev": "node esbuild.config.mjs",
+    "build": "node esbuild.config.mjs production"
+  },
+  "keywords": [
+    "obsidian",
+    "obsidian-plugin",
+    "image",
+    "paste",
+    "organize"
+  ],
+  "license": "MIT",
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "esbuild": "^0.24.0",
+    "obsidian": "latest",
+    "typescript": "^5.6.0"
+  }
+}
