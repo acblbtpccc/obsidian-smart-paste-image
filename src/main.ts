@@ -87,6 +87,21 @@ interface Translations {
   ctxRevealFinder: string;
   ctxCopyPath: string;
   statusImages: (count: number) => string;
+  batchResizeCommand: string;
+  batchResize: string;
+  batchResizeDesc: string;
+  batchResizeBtn: string;
+  batchResizeResult: (updated: number, skipped: number, failed: number) => string;
+  batchResizeNoSettings: string;
+  layoutTitle: string;
+  imageMargin: string;
+  imageMarginDesc: string;
+  paragraphSpacing: string;
+  paragraphSpacingDesc: string;
+  lineHeight: string;
+  lineHeightDesc: string;
+  imageMaxHeight: string;
+  imageMaxHeightDesc: string;
 }
 
 const zhCN: Translations = {
@@ -162,6 +177,25 @@ const zhCN: Translations = {
   ctxRevealFinder: "在文件管理器中显示",
   ctxCopyPath: "复制图片路径",
   statusImages: (n) => `🖼 ${n}`,
+  batchResizeCommand: "批量添加图片显示宽度",
+  batchResize: "批量添加显示宽度",
+  batchResizeDesc: "扫描所有笔记，给没有宽度参数的图片链接自动添加显示宽度（竖屏图片用竖屏宽度，其余用最大显示宽度）",
+  batchResizeBtn: "开始处理",
+  batchResizeResult: (updated, skipped, failed) => {
+    let msg = `批量添加宽度完成: ${updated} 个已更新, ${skipped} 个已有宽度跳过`;
+    if (failed > 0) msg += `, ${failed} 个失败`;
+    return msg;
+  },
+  batchResizeNoSettings: "请先在设置中开启「自动调整显示宽度」并配置宽度参数",
+  layoutTitle: "排版样式",
+  imageMargin: "图片上下间距 (px)",
+  imageMarginDesc: "图片与前后内容之间的间距（0 = 使用主题默认值）",
+  paragraphSpacing: "段落间距 (em)",
+  paragraphSpacingDesc: "段落之间的间距，单位 em（0 = 使用主题默认值，推荐 1.0-1.5）",
+  lineHeight: "行高",
+  lineHeightDesc: "文字行高倍数（0 = 使用主题默认值，推荐 1.6-2.0）",
+  imageMaxHeight: "图片最大高度 (px)",
+  imageMaxHeightDesc: "限制图片的最大显示高度，防止竖图占满屏幕（0 = 不限制，推荐 400-600）",
 };
 
 const enUS: Translations = {
@@ -237,6 +271,25 @@ const enUS: Translations = {
   ctxRevealFinder: "Reveal in file explorer",
   ctxCopyPath: "Copy image path",
   statusImages: (n) => `🖼 ${n}`,
+  batchResizeCommand: "Batch add image display widths",
+  batchResize: "Batch add display widths",
+  batchResizeDesc: "Scan all notes and add display width to image links that don't have one (portrait images use portrait width, others use max display width)",
+  batchResizeBtn: "Start",
+  batchResizeResult: (updated, skipped, failed) => {
+    let msg = `Batch resize done: ${updated} updated, ${skipped} already sized`;
+    if (failed > 0) msg += `, ${failed} failed`;
+    return msg;
+  },
+  batchResizeNoSettings: "Please enable 'Auto-resize display width' and configure width settings first",
+  layoutTitle: "Layout & Spacing",
+  imageMargin: "Image margin (px)",
+  imageMarginDesc: "Vertical spacing between images and surrounding content (0 = use theme default)",
+  paragraphSpacing: "Paragraph spacing (em)",
+  paragraphSpacingDesc: "Space between paragraphs in em units (0 = use theme default, recommended 1.0-1.5)",
+  lineHeight: "Line height",
+  lineHeightDesc: "Line height multiplier (0 = use theme default, recommended 1.6-2.0)",
+  imageMaxHeight: "Image max height (px)",
+  imageMaxHeightDesc: "Limit maximum display height of images to prevent tall screenshots from filling the screen (0 = no limit, recommended 400-600)",
 };
 
 function getLocale(): Translations {
@@ -260,6 +313,10 @@ interface PluginSettings {
   autoResizeDisplay: boolean;
   portraitDisplayWidth: number;
   maxDisplayWidth: number;
+  imageMargin: number;
+  paragraphSpacing: number;
+  lineHeight: number;
+  imageMaxHeight: number;
 }
 
 const DEFAULT_SETTINGS: PluginSettings = {
@@ -276,6 +333,10 @@ const DEFAULT_SETTINGS: PluginSettings = {
   autoResizeDisplay: true,
   portraitDisplayWidth: 300,
   maxDisplayWidth: 600,
+  imageMargin: 16,
+  paragraphSpacing: 1.2,
+  lineHeight: 1.8,
+  imageMaxHeight: 500,
 };
 
 // ─── Helpers ─────────────────────────────────────────────────────────
@@ -501,15 +562,60 @@ export default class AutoImageFolderPlugin extends Plugin {
   private t: Translations = enUS;
   private statusBarEl: HTMLElement | null = null;
   private statusBarTimer: ReturnType<typeof setTimeout> | null = null;
+  private layoutStyleEl: HTMLStyleElement | null = null;
 
   onunload() {
     if (this.statusBarTimer) clearTimeout(this.statusBarTimer);
+    this.layoutStyleEl?.remove();
+  }
+
+  applyLayoutCSS() {
+    if (!this.layoutStyleEl) {
+      this.layoutStyleEl = document.createElement("style");
+      this.layoutStyleEl.id = "smart-paste-image-layout";
+      document.head.appendChild(this.layoutStyleEl);
+    }
+    const s = this.settings;
+    const rules: string[] = [];
+
+    if (s.imageMargin > 0) {
+      rules.push(`.markdown-preview-view .image-embed,
+.markdown-preview-view p > img,
+.markdown-rendered .image-embed,
+.markdown-rendered p > img,
+.markdown-source-view .image-embed,
+.markdown-source-view .cm-embed-block,
+.markdown-source-view .internal-embed { margin: ${s.imageMargin}px 0 !important; display: block; }`);
+    }
+    if (s.paragraphSpacing > 0) {
+      rules.push(`.markdown-preview-view p,
+.markdown-rendered p { margin-bottom: ${s.paragraphSpacing}em !important; }
+.markdown-source-view .cm-line:not(.HyperMD-table-row) { margin-bottom: ${Math.round(s.paragraphSpacing * 4)}px !important; }`);
+    }
+    if (s.lineHeight > 0) {
+      rules.push(`.markdown-preview-view p,
+.markdown-preview-view li,
+.markdown-rendered p,
+.markdown-rendered li { line-height: ${s.lineHeight} !important; }
+.markdown-source-view .cm-content { line-height: ${s.lineHeight} !important; }
+.markdown-source-view .cm-line { line-height: ${s.lineHeight} !important; }`);
+    }
+    if (s.imageMaxHeight > 0) {
+      rules.push(`.markdown-preview-view img,
+.markdown-rendered img,
+.markdown-source-view img,
+.markdown-source-view .image-embed img,
+.markdown-source-view .internal-embed img { max-height: ${s.imageMaxHeight}px !important; object-fit: contain; }`);
+    }
+
+    this.layoutStyleEl.textContent = rules.join("\n");
   }
 
   async onload() {
     await this.loadSettings();
     this.t = getLocale();
     this.addSettingTab(new AutoImageFolderSettingTab(this.app, this));
+    this.applyLayoutCSS();
 
     this.addRibbonIcon("image-file", this.t.batchOrganizeCommand, () => this.batchOrganize());
 
@@ -622,6 +728,7 @@ export default class AutoImageFolderPlugin extends Plugin {
 
     // Commands
     this.addCommand({ id: "batch-organize", name: this.t.batchOrganizeCommand, callback: () => this.batchOrganize() });
+    this.addCommand({ id: "batch-add-display-width", name: this.t.batchResizeCommand, callback: () => this.batchAddDisplayWidth() });
     this.addCommand({
       id: "convert-links-current-note", name: this.t.convertLinksCommand,
       editorCallback: (_editor: Editor, ctx: MarkdownView | MarkdownFileInfo) => {
@@ -985,6 +1092,126 @@ export default class AutoImageFolderPlugin extends Plugin {
     this.updateStatusBar();
   }
 
+  // ─── Batch add display widths ────────────────────────────────────
+
+  async batchAddDisplayWidth() {
+    if (!this.settings.autoResizeDisplay ||
+      (this.settings.maxDisplayWidth === 0 && this.settings.portraitDisplayWidth === 0)) {
+      new Notice(this.t.batchResizeNoSettings);
+      return;
+    }
+
+    const mdFiles = this.app.vault.getFiles().filter((f) => f.extension === "md");
+    let totalUpdated = 0, totalSkipped = 0, totalFailed = 0;
+
+    const progressNotice = mdFiles.length > 5
+      ? new Notice(`${this.t.batchResize}: 0/${mdFiles.length}...`, 0) : null;
+
+    const dimCache = new Map<string, { width: number; height: number } | null>();
+
+    const getImgDims = async (imgPath: string): Promise<{ width: number; height: number } | null> => {
+      if (dimCache.has(imgPath)) return dimCache.get(imgPath)!;
+      const imgFile = this.app.vault.getAbstractFileByPath(imgPath);
+      if (!(imgFile instanceof TFile)) { dimCache.set(imgPath, null); return null; }
+      try {
+        const buf = await this.app.vault.readBinary(imgFile);
+        const ext = imgFile.extension.toLowerCase();
+        const mime = ext === "jpg" || ext === "jpeg" ? "image/jpeg"
+          : ext === "png" ? "image/png"
+          : ext === "gif" ? "image/gif"
+          : ext === "webp" ? "image/webp"
+          : ext === "bmp" ? "image/bmp"
+          : `image/${ext}`;
+        const dims = await getImageDimensions(buf, mime);
+        dimCache.set(imgPath, dims);
+        return dims;
+      } catch {
+        dimCache.set(imgPath, null);
+        return null;
+      }
+    };
+
+    for (let fi = 0; fi < mdFiles.length; fi++) {
+      const noteFile = mdFiles[fi];
+      if (progressNotice && fi % 5 === 0) {
+        progressNotice.setMessage(`${this.t.batchResize}: ${fi}/${mdFiles.length}...`);
+      }
+
+      let content = await this.app.vault.read(noteFile);
+      const noteParent = noteFile.parent?.path || "";
+      let modified = false;
+
+      // Process wikilinks: ![[file.png]] or ![[file.png|oldWidth]] → ![[file.png|newWidth]]
+      const wikiRe = /!\[\[([^\]|]+\.(png|jpe?g|gif|webp|bmp|svg))(\|(\d+))?\]\]/gi;
+      const wikiMatches = [...content.matchAll(wikiRe)];
+      for (let i = wikiMatches.length - 1; i >= 0; i--) {
+        const m = wikiMatches[i];
+        const fileName = m[1];
+        const existingWidth = m[4] ? parseInt(m[4]) : 0;
+        const resolved = this.app.metadataCache.getFirstLinkpathDest(fileName, noteFile.path);
+        if (!resolved) { totalFailed++; continue; }
+        const dims = await getImgDims(resolved.path);
+        if (!dims) { totalFailed++; continue; }
+        const dw = computeDisplayWidth(dims, this.settings);
+        if (dw <= 0) { totalSkipped++; continue; }
+        if (existingWidth === dw) { totalSkipped++; continue; }
+        const replacement = `![[${fileName}|${dw}]]`;
+        content = content.slice(0, m.index!) + replacement + content.slice(m.index! + m[0].length);
+        totalUpdated++;
+        modified = true;
+      }
+
+      // Process markdown links: ![alt](path.png) or ![alt|oldWidth](path.png) → ![alt|newWidth](path.png)
+      const mdRe = /!\[([^\]]*)\]\(([^)]+\.(png|jpe?g|gif|webp|bmp|svg))\)/gi;
+      const mdMatches = [...content.matchAll(mdRe)];
+      for (let i = mdMatches.length - 1; i >= 0; i--) {
+        const m = mdMatches[i];
+        const alt = m[1];
+        const rawPath = m[2];
+        const widthMatch = alt.match(/\|(\d+)$/);
+        const existingWidth = widthMatch ? parseInt(widthMatch[1]) : 0;
+        const baseAlt = widthMatch ? alt.slice(0, -widthMatch[0].length) : alt;
+
+        const decodedPath = rawPath.split("/").map((s) => {
+          try { return decodeURIComponent(s); } catch { return s; }
+        }).join("/");
+
+        let resolvedPath: string | null = null;
+        const direct = this.app.vault.getAbstractFileByPath(decodedPath);
+        if (direct instanceof TFile) {
+          resolvedPath = direct.path;
+        } else {
+          const fullPath = noteParent ? `${noteParent}/${decodedPath}` : decodedPath;
+          const full = this.app.vault.getAbstractFileByPath(fullPath);
+          if (full instanceof TFile) {
+            resolvedPath = full.path;
+          } else {
+            const byLink = this.app.metadataCache.getFirstLinkpathDest(decodedPath, noteFile.path);
+            if (byLink) resolvedPath = byLink.path;
+          }
+        }
+
+        if (!resolvedPath) { totalFailed++; continue; }
+        const dims = await getImgDims(resolvedPath);
+        if (!dims) { totalFailed++; continue; }
+        const dw = computeDisplayWidth(dims, this.settings);
+        if (dw <= 0) { totalSkipped++; continue; }
+        if (existingWidth === dw) { totalSkipped++; continue; }
+        const replacement = `![${baseAlt}|${dw}](${rawPath})`;
+        content = content.slice(0, m.index!) + replacement + content.slice(m.index! + m[0].length);
+        totalUpdated++;
+        modified = true;
+      }
+
+      if (modified) {
+        await this.app.vault.modify(noteFile, content);
+      }
+    }
+
+    if (progressNotice) progressNotice.hide();
+    new Notice(this.t.batchResizeResult(totalUpdated, totalSkipped, totalFailed), 10000);
+  }
+
   // ─── Link normalization (wikilink → markdown + fix absolute paths) ──
 
   async normalizeImageLinksInNote(noteFile: TFile, showNotice: boolean): Promise<number> {
@@ -1160,9 +1387,41 @@ class AutoImageFolderSettingTab extends PluginSettingTab {
       .addToggle((tg) => tg.setValue(this.plugin.settings.autoMoveOnRename)
         .onChange(async (v) => { this.plugin.settings.autoMoveOnRename = v; await this.plugin.saveSettings(); }));
 
+    containerEl.createEl("h3", { text: t.layoutTitle });
+    new Setting(containerEl).setName(t.imageMargin).setDesc(t.imageMarginDesc)
+      .addText((tx) => tx.setValue(String(this.plugin.settings.imageMargin))
+        .onChange(async (v) => {
+          this.plugin.settings.imageMargin = parseInt(v) || 0;
+          await this.plugin.saveSettings();
+          this.plugin.applyLayoutCSS();
+        }));
+    new Setting(containerEl).setName(t.paragraphSpacing).setDesc(t.paragraphSpacingDesc)
+      .addText((tx) => tx.setValue(String(this.plugin.settings.paragraphSpacing))
+        .onChange(async (v) => {
+          this.plugin.settings.paragraphSpacing = parseFloat(v) || 0;
+          await this.plugin.saveSettings();
+          this.plugin.applyLayoutCSS();
+        }));
+    new Setting(containerEl).setName(t.lineHeight).setDesc(t.lineHeightDesc)
+      .addText((tx) => tx.setValue(String(this.plugin.settings.lineHeight))
+        .onChange(async (v) => {
+          this.plugin.settings.lineHeight = parseFloat(v) || 0;
+          await this.plugin.saveSettings();
+          this.plugin.applyLayoutCSS();
+        }));
+    new Setting(containerEl).setName(t.imageMaxHeight).setDesc(t.imageMaxHeightDesc)
+      .addText((tx) => tx.setValue(String(this.plugin.settings.imageMaxHeight))
+        .onChange(async (v) => {
+          this.plugin.settings.imageMaxHeight = parseInt(v) || 0;
+          await this.plugin.saveSettings();
+          this.plugin.applyLayoutCSS();
+        }));
+
     containerEl.createEl("h3", { text: t.toolsTitle });
     new Setting(containerEl).setName(t.batchOrganize).setDesc(t.batchOrganizeDesc)
       .addButton((b) => b.setButtonText(t.batchOrganizeBtn).setCta().onClick(() => this.plugin.batchOrganize()));
+    new Setting(containerEl).setName(t.batchResize).setDesc(t.batchResizeDesc)
+      .addButton((b) => b.setButtonText(t.batchResizeBtn).setCta().onClick(() => this.plugin.batchAddDisplayWidth()));
     new Setting(containerEl).setName(t.convertLinksOnly).setDesc(t.convertLinksOnlyDesc)
       .addButton((b) => b.setButtonText(t.convertLinksOnlyBtn).onClick(async () => {
         const f = this.app.workspace.getActiveFile();
