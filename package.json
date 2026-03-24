@@ -1,6 +1,6 @@
 {
   "name": "obsidian-smart-paste-image",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Automatically save pasted/dropped images to structured subfolders with naming, compression, and smart features",
   "main": "main.js",
   "scripts": {

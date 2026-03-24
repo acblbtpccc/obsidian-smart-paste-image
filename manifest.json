@@ -1,7 +1,7 @@
 {
   "id": "smart-paste-image",
   "name": "Smart Paste Image",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "minAppVersion": "1.0.0",
   "description": "Smartly paste images into organized subfolders with auto-naming, compression, duplicate detection, and display sizing.",
   "author": "acblbtpccc",

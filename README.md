@@ -1,6 +1,6 @@
 # Smart Paste Image
 
-An [Obsidian](https://obsidian.md) plugin that smartly organizes pasted and dropped images into structured subfolders — with auto-naming, compression, duplicate detection, and display sizing.
+An [Obsidian](https://obsidian.md) plugin that smartly organizes pasted and dropped images into structured subfolders — with auto-naming, compression, duplicate detection, display sizing, layout control, and automatic image relocation.
 
 **No more scattered images in your vault root!**
 
@@ -42,6 +42,16 @@ Automatically adjusts image display width based on orientation:
 - **Landscape images** wider than the max display width are capped
 - Works with both Markdown (`![alt|300](path)`) and Wikilink (`![[file|300]]`) syntax
 
+### Batch Add Display Widths
+Already have notes with unsized images? Run **Batch add image display widths** from the Command Palette to scan all notes and add appropriate width parameters to every image link — portrait images get the portrait width, others get the max display width. Re-runnable: if you change your width settings later, run it again to update all existing links.
+
+### Layout & Spacing Control
+Fine-tune how your notes look — settings apply to both Reading mode and Live Preview:
+- **Image margin** — vertical spacing around images (px)
+- **Paragraph spacing** — space between paragraphs (em)
+- **Line height** — text line height multiplier
+- **Image max height** — prevent tall images from dominating the screen (px)
+
 ### Duplicate Detection
 When pasting an image, the plugin computes a SHA-256 hash and compares it with existing images in the target folder. If an identical image already exists, it reuses the existing file instead of creating a duplicate.
 
@@ -53,9 +63,15 @@ Paste a URL to an image (e.g. `https://example.com/photo.jpg`) and the plugin wi
 
 Works with URLs that have explicit image extensions and also tries to detect image content-type for URLs without extensions.
 
+### Automatic Image Relocation
+Cut or copy image links from one note and paste into another — the plugin automatically:
+- Detects that the image file belongs to a different note's folder
+- Moves the image to the current note's image folder
+- Updates the link path in the note
+
 ### Note Lifecycle Sync
 - **Move/rename a note** → the image folder follows automatically, links updated
-- **Delete a note** → the image folder is cleaned up (with safety check: skips if other notes reference the images)
+- **Delete a note** → the image folder is cleaned up (respects user's deletion preference via trash; skips if other notes reference the images)
 
 ### Batch Organize
 Already have scattered images? Run **Auto organize** from the Command Palette to:
@@ -92,14 +108,14 @@ The plugin detects your Obsidian language and shows UI in **English** or **Chine
 | Max width | 1920px | Scale down images wider than this |
 | Quality | 0.85 | JPEG quality (0.1–1.0) |
 
-### Display Size
+### Display size
 | Setting | Default | Description |
 |---------|---------|-------------|
 | Auto-resize display | On | Auto-set display width by orientation |
 | Portrait width | 300px | Display width for portrait images |
 | Max display width | 600px | Cap for all images |
 
-### Smart Features
+### Smart features
 | Setting | Default | Description |
 |---------|---------|-------------|
 | Detect duplicates | On | SHA-256 hash comparison to avoid duplicates |
@@ -111,6 +127,14 @@ The plugin detects your Obsidian language and shows UI in **English** or **Chine
 | Clean up on delete | On | Delete image folder when note is deleted |
 | Sync on rename | On | Move image folder when note is moved |
 
+### Layout & spacing
+| Setting | Default | Description |
+|---------|---------|-------------|
+| Image margin | 0 | Vertical spacing around images in px (0 = theme default) |
+| Paragraph spacing | 0 | Space between paragraphs in em (0 = theme default) |
+| Line height | 0 | Line height multiplier (0 = theme default) |
+| Image max height | 0 | Max image display height in px (0 = no limit) |
+
 ---
 
 ## Installation
@@ -121,7 +145,7 @@ The plugin detects your Obsidian language and shows UI in **English** or **Chine
 3. Install and enable
 
 ### Manual Installation
-1. Download `main.js` and `manifest.json` from the [latest release](https://github.com/acblbtpccc/obsidian-smart-paste-image/releases)
+1. Download `main.js`, `manifest.json`, and `styles.css` from the [latest release](https://github.com/acblbtpccc/obsidian-smart-paste-image/releases)
 2. Create folder: `<vault>/.obsidian/plugins/smart-paste-image/`
 3. Copy the files into that folder
 4. Restart Obsidian → Settings → Community Plugins → Enable "Smart Paste Image"
@@ -159,7 +183,7 @@ MIT
 <a id="中文说明"></a>
 # 中文说明
 
-一个 [Obsidian](https://obsidian.md) 插件，智能管理粘贴/拖拽的图片 — 自动整理到子文件夹、命名、压缩、去重、调整显示尺寸。
+一个 [Obsidian](https://obsidian.md) 插件，智能管理粘贴/拖拽的图片 — 自动整理到子文件夹、命名、压缩、去重、调整显示尺寸、排版控制、自动迁移图片。
 
 **告别 vault 根目录散乱的图片！**
 
@@ -189,15 +213,31 @@ MIT
 - **竖屏图片**（如手机截图）缩小显示（默认 300px），避免撑满页面
 - **横屏图片**超过最大显示宽度时自动缩放
 
+### 批量补充显示宽度
+已有大量没有宽度参数的图片？在命令面板运行 **批量补充图片显示宽度**，自动扫描所有笔记并为图片链接添加合适的宽度参数。可重复执行：修改宽度设置后再跑一次即可全部更新。
+
+### 排版样式控制
+精细调节笔记外观，阅读模式和 Live Preview 编辑模式均生效：
+- **图片上下间距** — 图片与前后内容的间距（px）
+- **段落间距** — 段落之间的间距（em）
+- **行高** — 文字行高倍数
+- **图片最大高度** — 限制竖图占满屏幕（px）
+
 ### 重复检测
 粘贴时用 SHA-256 哈希比对，发现相同图片直接复用已有文件。
 
 ### 粘贴 URL 自动下载
 粘贴图片链接（如 `https://example.com/photo.jpg`）时自动下载到本地。也支持没有扩展名的图片 URL（通过检测 content-type）。
 
+### 自动迁移图片
+从一个笔记剪切/复制图片链接粘贴到另一个笔记时，插件自动：
+- 检测图片文件属于其他笔记的文件夹
+- 将图片移动到当前笔记的图片文件夹
+- 更新笔记中的链接路径
+
 ### 笔记生命周期同步
 - **移动/重命名笔记** → 图片文件夹自动跟着移动，链接自动更新
-- **删除笔记** → 对应的图片文件夹自动清理（安全检查：其他笔记引用的图片不会删除）
+- **删除笔记** → 对应的图片文件夹自动清理（尊重用户的删除偏好；其他笔记引用的图片不会删除）
 
 ### 自动整理（批量）
 命令面板运行 **自动整理** 可以：
@@ -253,6 +293,14 @@ MIT
 | 删除笔记时清理图片 | 开 | 删除笔记时自动清理图片 |
 | 移动笔记时同步图片 | 开 | 重命名/移动时图片跟着走 |
 
+### 排版样式
+| 设置 | 默认值 | 说明 |
+|------|--------|------|
+| 图片上下间距 | 0 | 图片与前后内容的间距 px（0 = 主题默认值） |
+| 段落间距 | 0 | 段落间距 em（0 = 主题默认值） |
+| 行高 | 0 | 行高倍数（0 = 主题默认值） |
+| 图片最大高度 | 0 | 图片最大显示高度 px（0 = 不限制） |
+
 ---
 
 ## 安装
@@ -263,7 +311,7 @@ MIT
 3. 安装并启用
 
 ### 手动安装
-1. 从 [最新 Release](https://github.com/acblbtpccc/obsidian-smart-paste-image/releases) 下载 `main.js` 和 `manifest.json`
+1. 从 [最新 Release](https://github.com/acblbtpccc/obsidian-smart-paste-image/releases) 下载 `main.js`、`manifest.json` 和 `styles.css`
 2. 创建文件夹: `<vault>/.obsidian/plugins/smart-paste-image/`
 3. 将文件放入该文件夹
 4. 重启 Obsidian → 设置 → 第三方插件 → 启用
