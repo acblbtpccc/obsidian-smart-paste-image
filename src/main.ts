@@ -216,14 +216,14 @@ const enUS: Translations = {
   maxImageWidthDesc: "Images wider than this will be scaled down proportionally (0 = no limit)",
   imageQuality: "Compression quality",
   imageQualityDesc: "JPEG/WebP quality 0.1-1.0 (1.0 = lossless, recommended 0.8)",
-  displayTitle: "Display Size",
+  displayTitle: "Display size",
   autoResizeDisplay: "Auto-resize display width",
   autoResizeDisplayDesc: "Automatically set display width based on image orientation: shrink portrait screenshots to avoid taking up the full page",
   portraitWidth: "Portrait image width (px)",
   portraitWidthDesc: "Display width for portrait images (height > width), e.g. phone screenshots (0 = no limit)",
   maxDisplayWidth: "Max display width (px)",
   maxDisplayWidthDesc: "Maximum display width for all images (0 = no limit)",
-  smartTitle: "Smart Features",
+  smartTitle: "Smart features",
   detectDuplicates: "Detect duplicate images",
   detectDuplicatesDesc: "Check for identical images when pasting to avoid duplicate storage, reusing existing files",
   autoDownloadUrl: "Auto-download image URLs",
@@ -281,7 +281,7 @@ const enUS: Translations = {
     return msg;
   },
   batchResizeNoSettings: "Please enable 'Auto-resize display width' and configure width settings first",
-  layoutTitle: "Layout & Spacing",
+  layoutTitle: "Layout & spacing",
   imageMargin: "Image margin (px)",
   imageMarginDesc: "Vertical spacing between images and surrounding content (0 = use theme default)",
   paragraphSpacing: "Paragraph spacing (em)",
@@ -379,11 +379,15 @@ function relImgFolder(noteFile: TFile, folderName: string): string {
   return `${folderName}/${noteFile.basename}`;
 }
 
+function encodePathForMd(path: string): string {
+  return path.split("/").map(s => s.replace(/[()%\[\]#]/g, c => encodeURIComponent(c))).join("/");
+}
+
 const IMAGE_URL_RE = /^https?:\/\/.+\.(png|jpe?g|gif|webp|bmp|svg)(\?.*)?$/i;
 const GENERIC_URL_RE = /^https?:\/\/.+/i;
 
 function sanitizeFileName(name: string): string {
-  return name.replace(/[\/\\:*?"<>|#^[\]]/g, "_").replace(/\s+/g, "-").trim();
+  return name.replace(/[/\\:*?"<>|#^[\]]/g, "_").replace(/\s+/g, "-").trim();
 }
 
 function getImageDimensions(buf: ArrayBuffer, mimeType: string): Promise<{ width: number; height: number }> {
@@ -441,14 +445,11 @@ class ImageSuffixModal extends Modal {
 
     if (this.imageBlob) {
       this.blobUrl = URL.createObjectURL(this.imageBlob);
-      const preview = contentEl.createDiv({ cls: "image-preview-container" });
-      preview.style.cssText = "margin-bottom:12px;text-align:center;border-radius:6px;overflow:hidden;border:1px solid var(--background-modifier-border);background:var(--background-secondary)";
+      const preview = contentEl.createDiv({ cls: "spi-modal-preview" });
       const img = preview.createEl("img");
       img.src = this.blobUrl;
-      img.style.cssText = "max-width:100%;max-height:200px;object-fit:contain;display:block;margin:0 auto";
 
-      const infoEl = contentEl.createDiv();
-      infoEl.style.cssText = "font-size:11px;color:var(--text-faint);text-align:center;margin-bottom:8px";
+      const infoEl = contentEl.createDiv({ cls: "spi-modal-info" });
       const sizeKB = Math.round(this.imageBlob.size / 1024);
       const sizeStr = sizeKB >= 1024 ? `${(sizeKB / 1024).toFixed(1)} MB` : `${sizeKB} KB`;
       infoEl.setText(sizeStr);
@@ -457,16 +458,13 @@ class ImageSuffixModal extends Modal {
       });
     }
 
-    const pathEl = contentEl.createDiv();
-    pathEl.style.cssText = "font-size:12px;color:var(--text-muted);margin-bottom:12px;word-break:break-all";
+    const pathEl = contentEl.createDiv({ cls: "spi-modal-path" });
     pathEl.setText(`${this.t.modalSaveTo}: ${this.targetPath}`);
     contentEl.createEl("p", { text: this.t.modalHint, cls: "setting-item-description" });
 
-    const inputEl = contentEl.createEl("input", { type: "text", placeholder: this.t.modalPlaceholder });
-    inputEl.style.cssText = "width:100%;padding:8px;margin-bottom:4px;font-size:14px";
+    const inputEl = contentEl.createEl("input", { type: "text", placeholder: this.t.modalPlaceholder, cls: "spi-modal-input" });
 
-    const nameEl = contentEl.createDiv();
-    nameEl.style.cssText = "font-size:12px;color:var(--text-muted);margin-bottom:12px";
+    const nameEl = contentEl.createDiv({ cls: "spi-modal-name" });
 
     const updatePreview = () => {
       const ts = formatDateTime(new Date());
@@ -525,8 +523,7 @@ class RenameModal extends Modal {
     const t = getLocale();
     contentEl.createEl("h3", { text: t.ctxRename });
 
-    const inputEl = contentEl.createEl("input", { type: "text", value: this.currentName });
-    inputEl.style.cssText = "width:100%;padding:8px;margin-bottom:12px;font-size:14px";
+    const inputEl = contentEl.createEl("input", { type: "text", value: this.currentName, cls: "spi-modal-input-wide" });
     inputEl.select();
 
     inputEl.addEventListener("keydown", (e) => {
@@ -651,7 +648,16 @@ export default class AutoImageFolderPlugin extends Plugin {
         }
 
         const files = evt.clipboardData?.files;
-        if (!files || files.length === 0) return;
+        if (!files || files.length === 0) {
+          const text = evt.clipboardData?.getData("text/plain") ?? "";
+          if (/!\[.*\]\(.*\.(png|jpe?g|gif|webp|bmp|svg)\)/i.test(text) ||
+              /!\[\[.*\.(png|jpe?g|gif|webp|bmp|svg)/i.test(text)) {
+            setTimeout(() => {
+              if (info.file) this.autoRelocateImages(info.file).catch(() => {});
+            }, 500);
+          }
+          return;
+        }
         const imageFiles = Array.from(files).filter((f) => f.type.startsWith("image/"));
         if (imageFiles.length === 0) return;
         evt.preventDefault();
@@ -686,19 +692,12 @@ export default class AutoImageFolderPlugin extends Plugin {
         if (!resolved) return;
 
         menu.addItem((item) =>
-          item.setTitle(this.t.ctxRename).setIcon("pencil").onClick(() => this.renameImage(resolved))
+          item.setTitle(this.t.ctxRename).setIcon("pencil").onClick(() => { void this.renameImage(resolved); })
         );
         menu.addItem((item) =>
           item.setTitle(this.t.ctxRevealFinder).setIcon("folder-open").onClick(() => {
-            const adapter = this.app.vault.adapter as any;
-            if (adapter.getBasePath) {
-              const fullPath = `${adapter.getBasePath()}/${resolved.path}`;
-              if (Platform.isMacOS) {
-                (require("electron") as any).shell.showItemInFolder(fullPath);
-              } else {
-                (require("electron") as any).shell.openPath(fullPath.replace(/\/[^/]+$/, ""));
-              }
-            }
+            // @ts-expect-error — showInFolder is available on desktop but not typed
+            this.app.showInFolder(resolved.path);
           })
         );
         menu.addItem((item) =>
@@ -973,11 +972,11 @@ export default class AutoImageFolderPlugin extends Plugin {
       }
 
       const refreshed = this.app.vault.getAbstractFileByPath(oldImgFolder);
-      if (refreshed instanceof TFolder && refreshed.children.length === 0) await this.app.vault.delete(refreshed);
+      if (refreshed instanceof TFolder && refreshed.children.length === 0) await this.app.fileManager.trashFile(refreshed);
 
       const oldParentImg = oldParent ? `${oldParent}/${this.settings.imageFolderName}` : this.settings.imageFolderName;
       const pf = this.app.vault.getAbstractFileByPath(oldParentImg);
-      if (pf instanceof TFolder && pf.children.length === 0) await this.app.vault.delete(pf);
+      if (pf instanceof TFolder && pf.children.length === 0) await this.app.fileManager.trashFile(pf);
 
       // fileManager.renameFile updates links to vault-absolute paths; normalize them
       if (this.settings.linkStyle === "markdown") {
@@ -1011,13 +1010,13 @@ export default class AutoImageFolderPlugin extends Plugin {
     });
 
     if (referencedElsewhere) {
-      console.log(`Smart Paste Image: skipping cleanup of ${path} — images still referenced by other notes`);
+      console.debug(`Smart Paste Image: skipping cleanup of ${path} — images still referenced by other notes`);
       return;
     }
 
     const count = folder.children.length;
     try {
-      await this.app.vault.delete(folder, true);
+      await this.app.fileManager.trashFile(folder);
       if (count > 0) new Notice(this.t.cleanedUp(count, path));
     } catch (e) { console.error("Smart Paste Image: cleanup error", e); }
   }
@@ -1072,9 +1071,7 @@ export default class AutoImageFolderPlugin extends Plugin {
     if (progressNotice) progressNotice.hide();
     new Notice(this.t.batchResult(moved, skipped, errors.length), 10000);
     if (errors.length > 0) {
-      console.group("Smart Paste Image: organize errors");
-      errors.forEach((e) => console.warn(e));
-      console.groupEnd();
+      console.warn("Smart Paste Image: organize errors", errors);
     }
 
     if (this.settings.linkStyle === "markdown") {
@@ -1196,8 +1193,9 @@ export default class AutoImageFolderPlugin extends Plugin {
         if (!dims) { totalFailed++; continue; }
         const dw = computeDisplayWidth(dims, this.settings);
         if (dw <= 0) { totalSkipped++; continue; }
-        if (existingWidth === dw) { totalSkipped++; continue; }
-        const replacement = `![${baseAlt}|${dw}](${rawPath})`;
+        const cleanPath = encodePathForMd(noteParent ? this.toRelativePath(resolvedPath, noteParent) : resolvedPath);
+        if (existingWidth === dw && cleanPath === rawPath) { totalSkipped++; continue; }
+        const replacement = `![${baseAlt}|${dw}](${cleanPath})`;
         content = content.slice(0, m.index!) + replacement + content.slice(m.index! + m[0].length);
         totalUpdated++;
         modified = true;
@@ -1210,6 +1208,103 @@ export default class AutoImageFolderPlugin extends Plugin {
 
     if (progressNotice) progressNotice.hide();
     new Notice(this.t.batchResizeResult(totalUpdated, totalSkipped, totalFailed), 10000);
+  }
+
+  // ─── Auto-relocate images pasted from other notes ────────────────
+
+  private async autoRelocateImages(noteFile: TFile) {
+    const content = await this.app.vault.read(noteFile);
+    const noteParent = noteFile.parent?.path || "";
+    const expectedFolder = imgFolderPath(noteFile, this.settings.imageFolderName);
+    let modified = false;
+    let newContent = content;
+    let movedCount = 0;
+
+    const processLink = async (
+      imgPath: string
+    ): Promise<{ newRelPath: string; moved: boolean } | null> => {
+      const fullPath = noteParent ? `${noteParent}/${imgPath}` : imgPath;
+      let imgFile = this.app.vault.getAbstractFileByPath(fullPath);
+      if (!(imgFile instanceof TFile)) {
+        imgFile = this.app.vault.getAbstractFileByPath(imgPath);
+      }
+      if (!(imgFile instanceof TFile)) {
+        const byLink = this.app.metadataCache.getFirstLinkpathDest(
+          imgPath.split("/").map(s => { try { return decodeURIComponent(s); } catch { return s; } }).join("/"),
+          noteFile.path
+        );
+        if (byLink) imgFile = byLink;
+      }
+      if (!(imgFile instanceof TFile)) return null;
+
+      if (imgFile.path.startsWith(expectedFolder + "/")) return null;
+
+      try {
+        await this.ensureFolder(expectedFolder);
+        const target = this.deduplicatePath(
+          `${expectedFolder}/${imgFile.name}`,
+          imgFile.extension
+        );
+        await this.app.fileManager.renameFile(imgFile, target);
+        const relFolder = relImgFolder(noteFile, this.settings.imageFolderName);
+        const newName = target.split("/").pop()!;
+        return { newRelPath: `${relFolder}/${newName}`, moved: true };
+      } catch {
+        return null;
+      }
+    };
+
+    // Process markdown links
+    const mdRe = /!\[([^\]]*)\]\(([^)]+\.(png|jpe?g|gif|webp|bmp|svg))\)/gi;
+    const mdMatches = [...newContent.matchAll(mdRe)];
+    for (let i = mdMatches.length - 1; i >= 0; i--) {
+      const m = mdMatches[i];
+      const alt = m[1];
+      const rawPath = m[2];
+      const decoded = rawPath.split("/").map(s => {
+        try { return decodeURIComponent(s); } catch { return s; }
+      }).join("/");
+      const result = await processLink(decoded);
+      if (!result || !result.moved) continue;
+      const encoded = encodePathForMd(result.newRelPath);
+      const replacement = `![${alt}](${encoded})`;
+      newContent = newContent.slice(0, m.index!) + replacement + newContent.slice(m.index! + m[0].length);
+      movedCount++;
+      modified = true;
+    }
+
+    // Process wikilinks
+    const wikiRe = /!\[\[([^\]|]+\.(png|jpe?g|gif|webp|bmp|svg))(\|[^\]]+)?\]\]/gi;
+    const wikiMatches = [...newContent.matchAll(wikiRe)];
+    for (let i = wikiMatches.length - 1; i >= 0; i--) {
+      const m = wikiMatches[i];
+      const fileName = m[1];
+      const widthPart = m[3] || "";
+      const resolved = this.app.metadataCache.getFirstLinkpathDest(fileName, noteFile.path);
+      if (!resolved) continue;
+      if (resolved.path.startsWith(expectedFolder + "/")) continue;
+      try {
+        await this.ensureFolder(expectedFolder);
+        const target = this.deduplicatePath(
+          `${expectedFolder}/${resolved.name}`,
+          resolved.extension
+        );
+        await this.app.fileManager.renameFile(resolved, target);
+        const newName = target.split("/").pop()!;
+        const replacement = `![[${newName}${widthPart}]]`;
+        newContent = newContent.slice(0, m.index!) + replacement + newContent.slice(m.index! + m[0].length);
+        movedCount++;
+        modified = true;
+      } catch { /* skip */ }
+    }
+
+    if (modified) {
+      await this.app.vault.modify(noteFile, newContent);
+      if (movedCount > 0) {
+        const t = this.t;
+        new Notice(t.batchResult(movedCount, 0, 0));
+      }
+    }
   }
 
   // ─── Link normalization (wikilink → markdown + fix absolute paths) ──
@@ -1225,7 +1320,7 @@ export default class AutoImageFolderPlugin extends Plugin {
       const resolved = this.app.metadataCache.getFirstLinkpathDest(fileName, noteFile.path);
       if (!resolved) return _match;
       const rel = this.toRelativePath(resolved.path, noteParent);
-      const encoded = rel.split("/").map((s) => encodeURIComponent(s)).join("/");
+      const encoded = encodePathForMd(rel);
       const alt = widthStr ? `${resolved.basename}|${widthStr}` : resolved.basename;
       totalFixed++;
       return `![${alt}](${encoded})`;
@@ -1243,14 +1338,14 @@ export default class AutoImageFolderPlugin extends Plugin {
         const byLink = this.app.metadataCache.getFirstLinkpathDest(decodedPath, noteFile.path);
         if (!byLink) return match;
         const rel = this.toRelativePath(byLink.path, noteParent);
-        const encoded = rel.split("/").map((s) => encodeURIComponent(s)).join("/");
+        const encoded = encodePathForMd(rel);
         if (encoded === rawPath) return match;
         totalFixed++;
         return `![${alt}](${encoded})`;
       }
 
       const rel = this.toRelativePath(resolved.path, noteParent);
-      const encoded = rel.split("/").map((s) => encodeURIComponent(s)).join("/");
+      const encoded = encodePathForMd(rel);
       if (encoded === rawPath) return match;
       totalFixed++;
       return `![${alt}](${encoded})`;
@@ -1285,7 +1380,7 @@ export default class AutoImageFolderPlugin extends Plugin {
     if (this.settings.linkStyle === "wikilink") {
       return displayWidth > 0 ? `![[${fileName}|${displayWidth}]]` : `![[${fileName}]]`;
     }
-    const encoded = relativePath.split("/").map((s) => encodeURIComponent(s)).join("/");
+    const encoded = encodePathForMd(relativePath);
     const alt = displayWidth > 0 ? `${altText}|${displayWidth}` : altText;
     return `![${alt}](${encoded})`;
   }
@@ -1335,21 +1430,21 @@ class AutoImageFolderSettingTab extends PluginSettingTab {
     const t = getLocale();
     containerEl.empty();
 
-    containerEl.createEl("h2", { text: t.settingsTitle });
+    new Setting(containerEl).setName(t.settingsTitle).setHeading();
 
-    containerEl.createEl("h3", { text: t.basicTitle });
+    new Setting(containerEl).setName(t.basicTitle).setHeading();
     new Setting(containerEl).setName(t.imageFolderName).setDesc(t.imageFolderNameDesc)
       .addText((tx) => tx.setPlaceholder("image").setValue(this.plugin.settings.imageFolderName)
         .onChange(async (v) => { this.plugin.settings.imageFolderName = v || "image"; await this.plugin.saveSettings(); }));
     new Setting(containerEl).setName(t.linkStyle).setDesc(t.linkStyleDesc)
       .addDropdown((d) => d.addOption("markdown", t.linkStyleMarkdown).addOption("wikilink", t.linkStyleWikilink)
         .setValue(this.plugin.settings.linkStyle)
-        .onChange(async (v) => { this.plugin.settings.linkStyle = v as any; await this.plugin.saveSettings(); }));
+        .onChange(async (v) => { this.plugin.settings.linkStyle = v as PluginSettings["linkStyle"]; await this.plugin.saveSettings(); }));
     new Setting(containerEl).setName(t.showRenameModal).setDesc(t.showRenameModalDesc)
       .addToggle((tg) => tg.setValue(this.plugin.settings.showRenameModal)
         .onChange(async (v) => { this.plugin.settings.showRenameModal = v; await this.plugin.saveSettings(); }));
 
-    containerEl.createEl("h3", { text: t.compressionTitle });
+    new Setting(containerEl).setName(t.compressionTitle).setHeading();
     new Setting(containerEl).setName(t.enableCompression).setDesc(t.enableCompressionDesc)
       .addToggle((tg) => tg.setValue(this.plugin.settings.enableCompression)
         .onChange(async (v) => { this.plugin.settings.enableCompression = v; await this.plugin.saveSettings(); }));
@@ -1360,7 +1455,7 @@ class AutoImageFolderSettingTab extends PluginSettingTab {
       .addText((tx) => tx.setValue(String(this.plugin.settings.imageQuality))
         .onChange(async (v) => { this.plugin.settings.imageQuality = Math.max(0.1, Math.min(1.0, parseFloat(v) || 0.85)); await this.plugin.saveSettings(); }));
 
-    containerEl.createEl("h3", { text: t.displayTitle });
+    new Setting(containerEl).setName(t.displayTitle).setHeading();
     new Setting(containerEl).setName(t.autoResizeDisplay).setDesc(t.autoResizeDisplayDesc)
       .addToggle((tg) => tg.setValue(this.plugin.settings.autoResizeDisplay)
         .onChange(async (v) => { this.plugin.settings.autoResizeDisplay = v; await this.plugin.saveSettings(); }));
@@ -1371,7 +1466,7 @@ class AutoImageFolderSettingTab extends PluginSettingTab {
       .addText((tx) => tx.setValue(String(this.plugin.settings.maxDisplayWidth))
         .onChange(async (v) => { this.plugin.settings.maxDisplayWidth = parseInt(v) || 0; await this.plugin.saveSettings(); }));
 
-    containerEl.createEl("h3", { text: t.smartTitle });
+    new Setting(containerEl).setName(t.smartTitle).setHeading();
     new Setting(containerEl).setName(t.detectDuplicates).setDesc(t.detectDuplicatesDesc)
       .addToggle((tg) => tg.setValue(this.plugin.settings.detectDuplicates)
         .onChange(async (v) => { this.plugin.settings.detectDuplicates = v; await this.plugin.saveSettings(); }));
@@ -1379,7 +1474,7 @@ class AutoImageFolderSettingTab extends PluginSettingTab {
       .addToggle((tg) => tg.setValue(this.plugin.settings.autoDownloadUrl)
         .onChange(async (v) => { this.plugin.settings.autoDownloadUrl = v; await this.plugin.saveSettings(); }));
 
-    containerEl.createEl("h3", { text: t.automationTitle });
+    new Setting(containerEl).setName(t.automationTitle).setHeading();
     new Setting(containerEl).setName(t.autoCleanup).setDesc(t.autoCleanupDesc)
       .addToggle((tg) => tg.setValue(this.plugin.settings.autoCleanupOnDelete)
         .onChange(async (v) => { this.plugin.settings.autoCleanupOnDelete = v; await this.plugin.saveSettings(); }));
@@ -1387,7 +1482,7 @@ class AutoImageFolderSettingTab extends PluginSettingTab {
       .addToggle((tg) => tg.setValue(this.plugin.settings.autoMoveOnRename)
         .onChange(async (v) => { this.plugin.settings.autoMoveOnRename = v; await this.plugin.saveSettings(); }));
 
-    containerEl.createEl("h3", { text: t.layoutTitle });
+    new Setting(containerEl).setName(t.layoutTitle).setHeading();
     new Setting(containerEl).setName(t.imageMargin).setDesc(t.imageMarginDesc)
       .addText((tx) => tx.setValue(String(this.plugin.settings.imageMargin))
         .onChange(async (v) => {
@@ -1417,15 +1512,15 @@ class AutoImageFolderSettingTab extends PluginSettingTab {
           this.plugin.applyLayoutCSS();
         }));
 
-    containerEl.createEl("h3", { text: t.toolsTitle });
+    new Setting(containerEl).setName(t.toolsTitle).setHeading();
     new Setting(containerEl).setName(t.batchOrganize).setDesc(t.batchOrganizeDesc)
-      .addButton((b) => b.setButtonText(t.batchOrganizeBtn).setCta().onClick(() => this.plugin.batchOrganize()));
+      .addButton((b) => b.setButtonText(t.batchOrganizeBtn).setCta().onClick(() => { void this.plugin.batchOrganize(); }));
     new Setting(containerEl).setName(t.batchResize).setDesc(t.batchResizeDesc)
-      .addButton((b) => b.setButtonText(t.batchResizeBtn).setCta().onClick(() => this.plugin.batchAddDisplayWidth()));
+      .addButton((b) => b.setButtonText(t.batchResizeBtn).setCta().onClick(() => { void this.plugin.batchAddDisplayWidth(); }));
     new Setting(containerEl).setName(t.convertLinksOnly).setDesc(t.convertLinksOnlyDesc)
-      .addButton((b) => b.setButtonText(t.convertLinksOnlyBtn).onClick(async () => {
+      .addButton((b) => b.setButtonText(t.convertLinksOnlyBtn).onClick(() => {
         const f = this.app.workspace.getActiveFile();
-        if (f) await this.plugin.normalizeImageLinksInNote(f, true);
+        if (f) void this.plugin.normalizeImageLinksInNote(f, true);
         else new Notice(t.noActiveNote);
       }));
   }
